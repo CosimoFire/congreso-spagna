@@ -1,7 +1,7 @@
 Gruppo;Seggi;Colore;Dettaglio
-PSOE;115;blue-2;
-Fronte Ampio + Podemos;11;blue-3;
-PNV, ERC, Bildu, BNG;21;blue-4;
+PSOE;115;red-3;
+Fronte Ampio + Podemos;11;red-4;
+PNV, ERC, Bildu, BNG;21;red-5;
 Altri (tra cui Junts);9;grey-4;Il dato è ricavato per differenza: 350 meno tutti gli altri gruppi
-Vox;65;red-2;
-PP;129;red-3;
+Vox;65;blue-1;
+PP;129;blue-2;

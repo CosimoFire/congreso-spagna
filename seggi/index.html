@@ -11,10 +11,12 @@
 <style>
   .seg-t { fill: #fff; font-size: 12px; font-weight: 600; pointer-events: none; }
   :root[data-theme="dark"] .seg-t { fill: #121212; }
+  .seg-t--lt { fill: #121212; }
+  :root[data-theme="dark"] .seg-t--lt { fill: #fff; }
   .row-sub { font-size: 12px; fill: var(--ink-2); }
   .row-t { font-size: 14px; font-weight: 600; fill: var(--ink); }
   .row-v { font-size: 20px; font-weight: 700; fill: var(--ink); letter-spacing: -0.01em; }
-  .row-v--hot { fill: var(--red); }
+  .row-v--hot { fill: var(--blue); }
   .row-u { font-size: 12px; fill: var(--ink-2); }
   .maj-line { stroke: var(--ink); stroke-width: 1.5; shape-rendering: crispEdges; }
   .maj-label { font-size: 12px; fill: var(--ink-2); }
@@ -54,7 +56,7 @@
 
   Promise.all([R.loadCSV("../data/composizione.csv"), R.loadCSV("../data/scenari.csv")]).then(function (res) {
     var groups = res[0].map(function (r) {
-      return { k: r["Gruppo"], v: R.num(r["Seggi"]), c: "var(--" + r["Colore"] + ")", det: r["Dettaglio"] };
+      return { k: r["Gruppo"], v: R.num(r["Seggi"]), c: "var(--" + r["Colore"] + ")", n: r["Colore"], det: r["Dettaglio"] };
     });
     var byName = {}; groups.forEach(function (g) { byName[g.k] = g; });
     var sum = d3.sum(groups, function (g) { return g.v; });
@@ -77,7 +79,7 @@
           var xa = x(s.x0), w = x(s.x1) - xa - (s.last ? 0 : GAP);
           return s.last ? R.barPathH(xa, y, Math.max(0, w), h, 2) : "M" + xa + "," + y + "h" + Math.max(0, w) + "v" + h + "h" + (-Math.max(0, w)) + "Z";
         });
-      var txt = g.append("g").selectAll("text").data(items.filter(function (s) { return x(s.x1) - x(s.x0) >= 26; })).join("text").attr("class", "seg-t")
+      var txt = g.append("g").selectAll("text").data(items.filter(function (s) { return x(s.x1) - x(s.x0) >= 26; })).join("text").attr("class", function (s) { return /-(4|5)$/.test(s.p.n) || /^grey/.test(s.p.n) ? "seg-t seg-t--lt" : "seg-t"; })
         .attr("x", function (s) { return (x(s.x0) + x(s.x1) - (s.last ? 0 : GAP)) / 2; }).attr("y", y + h / 2).attr("dy", "0.35em").attr("text-anchor", "middle")
         .text(function (s) { return f0(s.p.v); });
       segs.on("pointerenter pointerdown", function (ev, s) {

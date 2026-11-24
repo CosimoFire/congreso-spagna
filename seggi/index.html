@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spagna, solo PP e Vox arrivano alla maggioranza – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<style>
+  .seg-t { fill: #fff; font-size: 12px; font-weight: 600; pointer-events: none; }
+  :root[data-theme="dark"] .seg-t { fill: #121212; }
+  .row-sub { font-size: 12px; fill: var(--ink-2); }
+  .row-t { font-size: 14px; font-weight: 600; fill: var(--ink); }
+  .row-v { font-size: 20px; font-weight: 700; fill: var(--ink); letter-spacing: -0.01em; }
+  .row-v--hot { fill: var(--red); }
+  .row-u { font-size: 12px; fill: var(--ink-2); }
+  .maj-line { stroke: var(--ink); stroke-width: 1.5; shape-rendering: crispEdges; }
+  .maj-label { font-size: 12px; fill: var(--ink-2); }
+  .r-chart + .r-chart { margin-top: 44px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="../assets/radar.js"></script>
+</head>
+<body>
+<main class="radar">
+  <header>
+    <h1 class="r-title">Spagna, solo PP e Vox arrivano alla maggioranza</h1>
+    <p class="r-sub">Seggi su 350 al Congresso dei deputati secondo la stima di voto. Maggioranza assoluta: 176</p>
+  </header>
+
+  <figure class="r-chart" id="rip">
+    <p class="r-chart__head">Come si dividono i 350 seggi</p>
+    <p class="r-chart__sub">Da sinistra a destra</p>
+    <div class="r-key" id="key-rip"></div>
+  </figure>
+
+  <figure class="r-chart" id="bat">
+    <p class="r-chart__head">La battaglia per la maggioranza (176)</p>
+    <p class="r-chart__sub">Seggi che somma ogni possibile alleanza e se raggiunge la maggioranza assoluta</p>
+  </figure>
+
+  <footer class="r-foot">
+    <span>Fonte: stima di voto per il Congresso dei deputati</span>
+    <span>Elaborazione Radar – QN</span>
+  </footer>
+</main>
+
+<script>
+(function () {
+  var R = Radar, fmt = R.fmt, f0 = function (v) { return fmt(v, 0); };
+  var MAJ = 176, TOT = 350;
+
+  Promise.all([R.loadCSV("../data/composizione.csv"), R.loadCSV("../data/scenari.csv")]).then(function (res) {
+    var groups = res[0].map(function (r) {
+      return { k: r["Gruppo"], v: R.num(r["Seggi"]), c: "var(--" + r["Colore"] + ")", det: r["Dettaglio"] };
+    });
+    var byName = {}; groups.forEach(function (g) { byName[g.k] = g; });
+    var sum = d3.sum(groups, function (g) { return g.v; });
+    if (sum !== TOT) console.warn("I seggi sommano " + sum + ", non " + TOT);
+    var scen = res[1].map(function (r) {
+      var parts = r["Gruppi"].split("|").map(function (k) { return byName[k]; });
+      return { k: r["Scenario"], parts: parts, v: d3.sum(parts, function (p) { return p.v; }), det: r["Dettaglio"] };
+    });
+
+    var GAP = 2;
+    /** barra orizzontale a segmenti: piena sul fianco sinistro, smussata solo sul lato libero a destra */
+    function stack(g, parts, x, y, h, tip, clear, host, total, dimAll) {
+      var x0 = 0, items = parts.map(function (p, i) {
+        var o = { p: p, x0: x0, x1: x0 + p.v, last: i === parts.length - 1 };
+        x0 += p.v; return o;
+      });
+      var segs = g.append("g").selectAll("path").data(items).join("path").attr("class", "mark")
+        .style("fill", function (s) { return s.p.c; })
+        .attr("d", function (s) {
+          var xa = x(s.x0), w = x(s.x1) - xa - (s.last ? 0 : GAP);
+          return s.last ? R.barPathH(xa, y, Math.max(0, w), h, 2) : "M" + xa + "," + y + "h" + Math.max(0, w) + "v" + h + "h" + (-Math.max(0, w)) + "Z";
+        });
+      var txt = g.append("g").selectAll("text").data(items.filter(function (s) { return x(s.x1) - x(s.x0) >= 26; })).join("text").attr("class", "seg-t")
+        .attr("x", function (s) { return (x(s.x0) + x(s.x1) - (s.last ? 0 : GAP)) / 2; }).attr("y", y + h / 2).attr("dy", "0.35em").attr("text-anchor", "middle")
+        .text(function (s) { return f0(s.p.v); });
+      segs.on("pointerenter pointerdown", function (ev, s) {
+        dimAll(s.p);
+        var pt = d3.pointer(ev, host), diff = total - MAJ;
+        tip.show(R.tipHTML({
+          title: s.p.k, value: f0(s.p.v), unit: "seggi",
+          rows: [["Quota dei 350 seggi", fmt(s.p.v / TOT * 100, 1) + "%"]].concat(total != null && total !== s.p.v
+            ? [["Totale dello scenario", f0(total)]] : []),
+          note: s.p.det || null
+        }), pt[0], pt[1]);
+      }).on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); clear(); } });
+      return { segs: segs, txt: txt };
+    }
+
+    // ================= 1. Ripartizione =================
+    (function () {
+      var host = document.getElementById("rip"), tip = R.tooltip(host), all = [];
+      var clear = function () { all.forEach(function (s) { s.classed("is-dimmed", false); }); };
+      R.dismissOutside(host, function () { tip.hide(); clear(); });
+      var big = ["PSOE", "Vox", "PP"];
+      d3.select("#key-rip").html(groups.filter(function (g) { return big.indexOf(g.k) < 0; }).map(function (g) {
+        return '<span><i class="sw" style="background:' + g.c + '"></i>' + g.k + " " + f0(g.v) + "</span>";
+      }).join(""));
+
+      R.responsive(host, function (W, phase) {
+        var narrow = R.isNarrow(W), top = 26, h = narrow ? 34 : 40, H = top + h + 28;
+        var x = d3.scaleLinear().domain([0, TOT]).range([0, W]);
+        d3.select(host).select("svg").remove();
+        var svg = d3.select(host).insert("svg", "#key-rip").attr("width", W).attr("height", H).attr("role", "img")
+          .attr("aria-label", "Barra dei 350 seggi, da sinistra a destra: " + groups.map(function (g) { return g.k + " " + f0(g.v); }).join(", ") + ". La maggioranza assoluta è a " + MAJ + " seggi.");
+        svg.append("title").text("Ripartizione dei 350 seggi del Congresso secondo la stima di voto");
+        var clipId = "clip-rip", clip = svg.append("clipPath").attr("id", clipId).append("rect").attr("x", 0).attr("y", 0).attr("height", H);
+        R.enter(clip, phase, function (s) { s.attr("width", 0); }, function (s) { s.attr("width", W); });
+        var g = svg.append("g").attr("clip-path", "url(#" + clipId + ")");
+
+        var st = stack(g, groups, x, top, h, tip, clear, host, null, function (p) {
+          st.segs.classed("is-dimmed", function (s) { return s.p !== p; }); st.txt.classed("is-dimmed", false);
+        });
+        all = [st.segs];
+        // nomi dei tre gruppi grandi
+        var acc = 0;
+        groups.forEach(function (gr) {
+          if (big.indexOf(gr.k) >= 0) {
+            svg.append("text").attr("class", "series-label").style("fill", gr.c)
+              .attr("x", x(acc + gr.v / 2) + (gr.k === "Vox" ? 10 : 0)).attr("y", top - 9).attr("text-anchor", "middle").text(gr.k);
+          }
+          acc += gr.v;
+        });
+        // maggioranza
+        svg.append("line").attr("class", "maj-line").attr("x1", Math.round(x(MAJ)) + 0.5).attr("x2", Math.round(x(MAJ)) + 0.5).attr("y1", top - 5).attr("y2", top + h + 8);
+        svg.append("text").attr("class", "maj-label").attr("x", x(MAJ)).attr("y", top + h + 22).attr("text-anchor", "middle").text("Maggioranza " + MAJ);
+      });
+    })();
+
+    // ================= 2. Battaglia per la maggioranza =================
+    (function () {
+      var host = document.getElementById("bat"), tip = R.tooltip(host), segsAll = null;
+      var clear = function () { if (segsAll) segsAll.classed("is-dimmed", false); };
+      R.dismissOutside(host, function () { tip.hide(); clear(); });
+      var winner = scen.filter(function (s) { return s.v >= MAJ; })[0];
+
+      R.responsive(host, function (W, phase) {
+        var narrow = R.isNarrow(W), h = narrow ? 26 : 30, DOMAIN = 200;
+        var x = d3.scaleLinear().domain([0, DOMAIN]).range([0, W]);
+        d3.select(host).select("svg").remove();
+        // altezze righe: titolo + eventuale sottotitolo a capo + barra
+        var cpl = Math.max(20, Math.floor(W / 6.3)), y = 4, rows = scen.map(function (s) {
+          var subLines = s.det ? Math.ceil(s.det.length / cpl) : 0;
+          var r = { s: s, y: y, subLines: subLines, barY: y + 32 + subLines * 15 };
+          y = r.barY + h + 30; return r;
+        });
+        var H = y - 8 + 14;
+        var svg = d3.select(host).append("svg").attr("width", W).attr("height", H).attr("role", "img")
+          .attr("aria-label", "Barre dei seggi per scenario: " + scen.map(function (s) { return s.k + " " + f0(s.v); }).join(", ") + ". Solo " + winner.k + " supera la maggioranza assoluta di " + MAJ + " seggi.");
+        svg.append("title").text("Seggi per possibile alleanza rispetto alla maggioranza di " + MAJ);
+        svg.node().parentNode.insertBefore(svg.node(), host.querySelector(".r-tip"));
+        var clip = svg.append("clipPath").attr("id", "clip-bat").append("rect").attr("x", 0).attr("y", 0).attr("height", H);
+        R.enter(clip, phase, function (s) { s.attr("width", 0); }, function (s) { s.attr("width", W); });
+        var all = [];
+        rows.forEach(function (r, i) {
+          var g = svg.append("g");
+          // riga di separazione
+          if (i > 0) g.append("line").attr("class", "grid").attr("x1", 0).attr("x2", W).attr("y1", r.y - 14.5).attr("y2", r.y - 14.5).style("stroke", "var(--rule)");
+          var hot = r.s.v >= MAJ;
+          g.append("text").attr("class", "row-t").attr("x", 0).attr("y", r.y + 12).text(narrow ? r.s.k.replace("Fronte Ampio", "F. Ampio") : r.s.k);
+          if (r.s.det) g.append("text").attr("class", "row-sub").attr("x", 0).attr("y", r.y + 30).text(r.s.det).call(R.wrap, W - 4, 1.25);
+          var vt = g.append("text").attr("x", W).attr("y", r.y + 14).attr("text-anchor", "end");
+          vt.append("tspan").attr("class", "row-v" + (hot ? " row-v--hot" : "")).text(f0(r.s.v));
+          vt.append("tspan").attr("class", "row-u").attr("dx", 6).text(hot ? "maggioranza assoluta" : "mancano " + f0(MAJ - r.s.v));
+          var bg = g.append("g").attr("clip-path", "url(#clip-bat)");
+          var st = stack(bg, r.s.parts, x, r.barY, h, tip, clear, host, r.s.v, function (p) {
+            segsAll.classed("is-dimmed", function (q) { return q.p !== p; });
+          });
+          all.push(st.segs);
+          // tacca della maggioranza
+          g.append("line").attr("class", "maj-line").attr("x1", Math.round(x(MAJ)) + 0.5).attr("x2", Math.round(x(MAJ)) + 0.5).attr("y1", r.barY - 4).attr("y2", r.barY + h + 5);
+        });
+        segsAll = all.reduce(function (a, b) { return a.merge(b); });
+        var last = rows[rows.length - 1];
+        svg.append("text").attr("class", "maj-label").attr("x", x(MAJ)).attr("y", last.barY + h + 20).attr("text-anchor", "middle").text("Maggioranza " + MAJ);
+      });
+    })();
+  }).catch(function (e) { R.fail(document.getElementById("rip"), e); });
+})();
+</script>
+</body>
+</html>

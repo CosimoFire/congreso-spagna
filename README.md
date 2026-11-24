@@ -1,2 +1,2 @@
-# Congreso – radar dei seggi
-Radar QN: seggi su 350 per scenario di alleanza (maggioranza 176). Pagina: `radar/`, dati: `data/scenari.csv`.
+# Congreso – seggi per alleanza
+Radar QN: ripartizione dei 350 seggi e battaglia per la maggioranza (176). Pagina: `seggi/`, dati: `data/composizione.csv` e `data/scenari.csv`.
